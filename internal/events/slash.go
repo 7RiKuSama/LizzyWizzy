@@ -57,31 +57,15 @@ func (h *Handlers) initCommands() {
 				Content: "Loading...",
 			},
 		})
-		Player.Session = s
-		Player.Interactions = i
-		Player.JoinVoiceChannel(true)
+		Player.JoinVoiceChannel(h.Session, i)
 	}
 
 	h.Slash.CommandHandlers["leave"] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Loading...",
-			},
-		})
-
-		Player.LeaveVoiceChannel(true)
+		Player.LeaveVoiceChannel(h.Session, i)
 	}
 
 	h.Slash.CommandHandlers["nowplaying"] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Loading...",
-			},
-		})
-
-		Player.MusicInfo(true)
+		Player.MusicInfo(h.Session, i)
 	}
 }
 

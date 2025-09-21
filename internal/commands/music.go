@@ -18,39 +18,34 @@ import (
 )
 
 type Player struct {
-	IsPlaying   bool
-	IsSlash     bool
-	TrackNumber int
-	TotalTracks int
-	Session     *discordgo.Session
-	Message     *discordgo.MessageCreate
-	Interactions *discordgo.InteractionCreate
-	Files       []string
-	Raw         *os.File
+	IsPlaying    bool
+	IsSlash      bool
+	TrackNumber  int
+	TotalTracks  int
+	Files        []string
+	Raw          *os.File
 }
 
 func NewPlayer(s *discordgo.Session, m *discordgo.MessageCreate, i *discordgo.InteractionCreate) *Player {
 	return &Player{
-		TrackNumber: 0,
-		TotalTracks: 0,
-		Session:     s,
-		Message:     m,
-		Interactions: i,
-		Files:       []string{},
-		Raw:         nil,
+		TrackNumber:  0,
+		TotalTracks:  0,
+		Files:        []string{},
+		Raw:          nil,
 	}
 }
 
-func (p *Player) SetResponse(slash bool, response *discordgo.MessageSend) {
-	if slash {
-		p.Session.InteractionRespond(p.Interactions.Interaction, &discordgo.InteractionResponse{
+func (p *Player) SetResponse(session *discordgo.Session, event any, response *discordgo.MessageSend) {
+	switch v := event.(type) {
+	case *discordgo.MessageCreate:
+		session.ChannelMessageSendComplex(v.ChannelID, response)
+	case *discordgo.InteractionCreate:
+		session.InteractionRespond(v.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Embeds: response.Embeds,
 			},
 		})
-	} else {
-		p.Session.ChannelMessageSendComplex(p.Message.ChannelID, response)
 	}
 }
 
@@ -185,9 +180,9 @@ func (p *Player) MusicEmbed(title string) *discordgo.MessageSend {
 	}
 }
 
-func (p *Player) NextTrack(slash, userIssued bool) {
+func (p *Player) NextTrack(session *discordgo.Session, event any, userIssued bool) {
 	if !p.IsPlaying {
-		p.SetResponse(slash, utils.SetWarningMessage("Next", response.MessageNoVoiceChannel))
+		p.SetResponse(session, event, utils.SetWarningMessage("Next", response.MessageNoVoiceChannel))
 		return
 	}
 	if p.TotalTracks > 0 {
@@ -195,18 +190,18 @@ func (p *Player) NextTrack(slash, userIssued bool) {
 	}
 
 	if err := p.GetFile(); err != nil {
-		p.SetResponse(slash, utils.SetErrorMessage("Next", response.ErrNextTrack))
+		p.SetResponse(session, event, utils.SetErrorMessage("Next", response.ErrNextTrack))
 		return
 	}
 
 	if userIssued {
-		p.SetResponse(slash, p.MusicEmbed("Next"))
+		p.SetResponse(session, event, p.MusicEmbed("Next"))
 	}
 }
 
-func (p *Player) PreviousTrack(slash bool) {
+func (p *Player) PreviousTrack(session *discordgo.Session, event any) {
 	if !p.IsPlaying {
-		p.SetResponse(slash, utils.SetWarningMessage("Previous", response.MessageNoVoiceChannel))
+		p.SetResponse(session, event, utils.SetWarningMessage("Previous", response.MessageNoVoiceChannel))
 		return
 	}
 	if p.TotalTracks > 0 {
@@ -217,24 +212,25 @@ func (p *Player) PreviousTrack(slash bool) {
 		}
 	}
 	if err := p.GetFile(); err != nil {
-		p.SetResponse(slash, utils.SetErrorMessage("Previous", response.ErrPreviousTrack))
+		p.SetResponse(session, event, utils.SetErrorMessage("Previous", response.ErrPreviousTrack))
 		return
 	}
-	p.SetResponse(slash, p.MusicEmbed("Previous"))
+	p.SetResponse(session, event, p.MusicEmbed("Previous"))
 }
 
 // function that returns the channelID of that the user is joining
-func (p *Player) getVoiceChannel(slash bool) (string, error) {
+func (p *Player) getVoiceChannel(session *discordgo.Session, event any) (string, error) {
 	var author, guild string
-	if slash {
-		author = p.Interactions.Member.User.ID
-		guild = p.Interactions.GuildID
-	} else {
-		author = p.Message.Author.ID
-		guild = p.Message.GuildID
+	switch v := event.(type) {
+	case *discordgo.InteractionCreate:
+		author = v.Member.User.ID
+		guild = v.GuildID
+	case *discordgo.MessageCreate:
+		author = v.Author.ID
+		guild = v.GuildID
 	}
 
-	vs, err := p.Session.State.VoiceState(guild, author)
+	vs, err := session.State.VoiceState(guild, author)
 
 	if err != nil {
 		return "", err
@@ -244,17 +240,18 @@ func (p *Player) getVoiceChannel(slash bool) (string, error) {
 }
 
 // Command to make the bot play music in the voice channel that the user is in
-func (p *Player) JoinVoiceChannel(slash bool) {
+func (p *Player) JoinVoiceChannel(session *discordgo.Session, event any) {
 
 	var guild string
 
-	if slash {
-		guild = p.Interactions.GuildID
-	} else {
-		guild = p.Message.GuildID
+	switch v := event.(type) {
+	case *discordgo.MessageCreate:
+		guild = v.GuildID
+	case *discordgo.InteractionCreate:
+		guild = v.GuildID
 	}
 
-	vc := p.Session.VoiceConnections[guild]
+	vc := session.VoiceConnections[guild]
 
 	if vc != nil && vc.ChannelID != "" {
 
@@ -265,27 +262,27 @@ func (p *Player) JoinVoiceChannel(slash bool) {
 		panic("Coudln't read the music directory")
 	}
 
-	channelID, err := p.getVoiceChannel(slash)
+	channelID, err := p.getVoiceChannel(session, event)
 
 	if err != nil {
-		p.SetResponse(slash, utils.SetErrorMessage("Play", response.ErrUnableToJoinVC))
+		p.SetResponse(session, event, utils.SetErrorMessage("Play", response.ErrUnableToJoinVC))
 		return
 	}
 
-	vc, err = p.Session.ChannelVoiceJoin(guild, channelID, false, false)
+	vc, err = session.ChannelVoiceJoin(guild, channelID, false, false)
 
 	if err != nil {
-		p.SetResponse(slash, utils.SetErrorMessage("Play", response.ErrUnableToJoinVC))
+		p.SetResponse(session, event, utils.SetErrorMessage("Play", response.ErrUnableToJoinVC))
 		return
 	}
 
 	defer vc.Disconnect()
 	if err := p.GetFile(); err != nil {
-		p.SetResponse(slash, utils.SetErrorMessage("Error", response.ErrPlayError))
+		p.SetResponse(session, event, utils.SetErrorMessage("Error", response.ErrPlayError))
 		return
 	}
 
-	p.SetResponse(slash, p.MusicEmbed("Playing"))
+	p.SetResponse(session, event, p.MusicEmbed("Playing"))
 
 	index := p.TrackNumber
 	p.IsPlaying = true
@@ -298,25 +295,25 @@ func (p *Player) JoinVoiceChannel(slash bool) {
 
 		pipe, err := ffmpeg.StdoutPipe()
 		if err != nil {
-			p.SetResponse(slash, utils.SetErrorMessage("Error", response.ErrPlayError))
+			p.SetResponse(session, event, utils.SetErrorMessage("Error", response.ErrPlayError))
 			continue
 		}
 		dca.Stdin = pipe
 
 		output, err := dca.StdoutPipe()
 		if err != nil {
-			p.SetResponse(slash, utils.SetErrorMessage("Error", response.ErrPlayError))
+			p.SetResponse(session, event, utils.SetErrorMessage("Error", response.ErrPlayError))
 			log.Println(err)
 			continue
 		}
 
 		if err := ffmpeg.Start(); err != nil {
-			p.SetResponse(slash, utils.SetErrorMessage("Error", response.ErrPlayError))
+			p.SetResponse(session, event, utils.SetErrorMessage("Error", response.ErrPlayError))
 			log.Println(err)
 			continue
 		}
 		if err := dca.Start(); err != nil {
-			p.SetResponse(slash, utils.SetErrorMessage("Error", response.ErrPlayError))
+			p.SetResponse(session, event, utils.SetErrorMessage("Error", response.ErrPlayError))
 			log.Println(err)
 			continue
 		}
@@ -344,29 +341,44 @@ func (p *Player) JoinVoiceChannel(slash bool) {
 		if curr != p.TrackNumber {
 			continue
 		}
-		p.NextTrack(slash, false)
+		p.NextTrack(session, event, false)
 		ffmpeg.Wait()
 		dca.Wait()
 	}
 }
 
-func (p *Player) LeaveVoiceChannel(slash bool) {
-	p.Session.VoiceConnections[p.Message.GuildID].Disconnect()
-	p.IsPlaying = false
-	p.SetResponse(slash, utils.SendMessage("Leaving", response.MessageLeaveChannel))
+func (p *Player) LeaveVoiceChannel(session *discordgo.Session, event any) {
+    var guild string
+    switch v := event.(type) {
+    case *discordgo.MessageCreate:
+        guild = v.GuildID
+    case *discordgo.InteractionCreate:
+        guild = v.GuildID
+    }
+
+    // Check if a voice connection exists for the guild.
+    // If it doesn't, inform the user and return.
+    if session.VoiceConnections[guild] == nil {
+        p.SetResponse(session, event, utils.SendMessage("Leaving", response.MessageNoVoiceChannel)) // Use an appropriate message
+        return
+    }
+
+    session.VoiceConnections[guild].Disconnect()
+    p.IsPlaying = false
+    p.SetResponse(session, event, utils.SendMessage("Leaving", response.MessageLeaveChannel))
 }
 
-func (p *Player) MusicInfo(slash bool) {
+func (p *Player) MusicInfo(session *discordgo.Session, event any) {
 	if !p.IsPlaying {
-		p.SetResponse(slash, utils.SetWarningMessage("Not Connected", response.MessageNoVoiceChannel))
+		p.SetResponse(session, event, utils.SetWarningMessage("Not Connected", response.MessageNoVoiceChannel))
 		return
 	}
 
 	if err := p.GetFile(); err != nil {
-		p.SetResponse(slash, utils.SetErrorMessage("Error", "Could not load track file"))
+		p.SetResponse(session, event, utils.SetErrorMessage("Error", "Could not load track file"))
 		return
 	}
-	p.SetResponse(slash, p.MusicEmbed("Song"))
+	p.SetResponse(session, event, p.MusicEmbed("Song"))
 }
 
 func (p *Player) SetFavorite(slash bool) {
