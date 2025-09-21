@@ -1,0 +1,10 @@
+bot:
+  prefix: "!"
+  guild_id: ""
+
+
+features:
+  music: true
+  moderation: false
+  banking: true
+

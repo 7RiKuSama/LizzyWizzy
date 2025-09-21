@@ -1,0 +1,14 @@
+# .air.toml
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/main ./cmd"
+  bin = "tmp/main"
+  full_bin = "APP_ENV=dev ./tmp/main"
+
+[watch]
+  include_dir = ["cmd", "internal"]
+  exclude_dir = ["assets", "tmp"]
+  include_ext = ["go"]
+  exclude_ext = ["swp"]
