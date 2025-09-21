@@ -14,6 +14,7 @@ import (
 var botInstance *bot.Bot
 
 func main() {
+	// hello world 
 	godotenv.Load()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
