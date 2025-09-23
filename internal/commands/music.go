@@ -19,14 +19,13 @@ import (
 
 type Player struct {
 	IsPlaying    bool
-	IsSlash      bool
 	TrackNumber  int
 	TotalTracks  int
 	Files        []string
 	Raw          *os.File
 }
 
-func NewPlayer(s *discordgo.Session, m *discordgo.MessageCreate, i *discordgo.InteractionCreate) *Player {
+func NewPlayer() *Player {
 	return &Player{
 		TrackNumber:  0,
 		TotalTracks:  0,
@@ -35,16 +34,16 @@ func NewPlayer(s *discordgo.Session, m *discordgo.MessageCreate, i *discordgo.In
 	}
 }
 
+
+
 func (p *Player) SetResponse(session *discordgo.Session, event any, response *discordgo.MessageSend) {
 	switch v := event.(type) {
 	case *discordgo.MessageCreate:
 		session.ChannelMessageSendComplex(v.ChannelID, response)
 	case *discordgo.InteractionCreate:
-		session.InteractionRespond(v.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Embeds: response.Embeds,
-			},
+		embedsPtr := response.Embeds
+		session.InteractionResponseEdit(v.Interaction, &discordgo.WebhookEdit{
+			Embeds: &embedsPtr,
 		})
 	}
 }

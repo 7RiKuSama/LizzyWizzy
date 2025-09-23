@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/7RikuSama/liz.git/internal/service"
@@ -46,16 +47,14 @@ func LoadRank(ctx context.Context, session *discordgo.Session, services *service
 				},
 			},
 		})
-	case *discordgo.InteractionCreate:
-		err = session.InteractionRespond(v.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "<@" + v.Member.User.ID + ">",
-				Files: []*discordgo.File{
-					{
-						Name:   "level.png",
-						Reader: buf,
-					},
+	case *discordgo.InteractionCreate:	
+		strContent := fmt.Sprintf("<@%s>", v.Member.User.ID)
+		session.InteractionResponseEdit(v.Interaction, &discordgo.WebhookEdit{
+			Content: &strContent,
+			Files: []*discordgo.File{
+				{
+					Name:   "level.png",
+					Reader: buf,
 				},
 			},
 		})

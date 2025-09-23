@@ -2,45 +2,40 @@ package events
 
 import (
 	"log"
+	"strings" // Add this import
 
 	"github.com/bwmarrin/discordgo"
 )
 
-func (h *Handlers) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+func (h *Handlers) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+    if s.State.User.ID == m.Author.ID {
+        return
+    }
 
-	Player.Message = m
+    // Trim whitespace from the message content
+    content := strings.TrimSpace(m.Content)
 
-	if s.State.User.ID == m.Author.ID {
-		return
-	}
+    // Check for the prefix before doing anything else
+    if len(content) > 0 && content[0] != '!' {
+        if err := h.Services.IncrementExp(h.Context, m); err != nil {
+            log.Println(err)
+        }
+    }
 
-	err := h.Services.CreateMembership(h.Context, m)
-	if err != nil {
-		log.Println(err)
-	}
-
-	if m.Content[0] != '!' {
-		if err := h.Services.IncrementExp(h.Context, m); err != nil {
-			log.Println(err)
-		}
-	}
-
-	if err := h.Services.LevelTracker(h.Context, s, m); err != nil {
-		log.Println(err)
-	}
-
-	switch m.Content {
-	case "!play":
-		Player.JoinVoiceChannel(false)
-	case "!leave":
-		Player.LeaveVoiceChannel(false)
-	case "!next":
-		Player.NextTrack(false, true)
-	case "!previous":
-		Player.PreviousTrack(false)
-	case "!rank":
-		h.Services.LoadRank(h.Context, s, m)
-	case "!nowplaying":
-		Player.MusicInfo(false)
-	}
+    if len(content) > 0 {
+        switch content {
+        case "!play":
+            Player.JoinVoiceChannel(s, m)
+        case "!leave":
+            Player.LeaveVoiceChannel(s, m)
+        case "!next":
+            Player.NextTrack(s, m, true)
+        case "!previous":
+            Player.PreviousTrack(s, m)
+        case "!rank":
+            h.Services.LoadRank(h.Context, s, m)
+        case "!nowplaying":
+            Player.MusicInfo(s, m)
+        }
+    }
 }

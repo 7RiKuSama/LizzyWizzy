@@ -20,8 +20,8 @@ func NewSlash() *Slash {
 	return sl
 }
 
+// this function initialize the commands, and their respective handlers in a slash
 func (h *Handlers) initCommands() {
-	// Both the map key and the ApplicationCommand's Name field should be "rank".
 	h.Slash.Commands["rank"] = &discordgo.ApplicationCommand{
 		Name:        "rank",
 		Description: "display user's rank",
@@ -42,7 +42,6 @@ func (h *Handlers) initCommands() {
 		Description: "displays info about the current song",
 	}
 
-	// This is correct because it matches the command name.
 	h.Slash.CommandHandlers["rank"] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		err := commands.LoadRank(h.Context, h.Session, h.Services, i)
 		if err != nil {
@@ -51,12 +50,6 @@ func (h *Handlers) initCommands() {
 	}
 
 	h.Slash.CommandHandlers["play"] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Loading...",
-			},
-		})
 		Player.JoinVoiceChannel(h.Session, i)
 	}
 
@@ -69,6 +62,7 @@ func (h *Handlers) initCommands() {
 	}
 }
 
+// AddCommands register slash commands
 func (h *Handlers) AddCommands(session *discordgo.Session, guildID string) {
 	for key, v := range h.Slash.Commands {
 		cmd, err := session.ApplicationCommandCreate(session.State.Application.ID, guildID, v)
@@ -79,6 +73,7 @@ func (h *Handlers) AddCommands(session *discordgo.Session, guildID string) {
 	}
 }
 
+// DeleteCommands deletes all the registered slash commands
 func (h *Handlers) DeleteCommands(session *discordgo.Session, guildID string) {
 	for _, cmd := range h.Slash.Commands {
 		err := session.ApplicationCommandDelete(session.State.Application.ID, guildID, cmd.ID)
@@ -88,9 +83,15 @@ func (h *Handlers) DeleteCommands(session *discordgo.Session, guildID string) {
 	}
 }
 
+// OnInteractionCreate handles income slash commands interactions
 func (h *Handlers) OnInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.Type == discordgo.InteractionApplicationCommand {
 		if handler, ok := h.Slash.CommandHandlers[i.ApplicationCommandData().Name]; ok {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData {
+				},
+			})
 			handler(s, i)
 		} else {
 			// This block handles unknown commands and prevents a timeout.

@@ -33,8 +33,9 @@ func NewHandlers(ctx context.Context, services *service.Services, s *discordgo.S
 
 func (h *Handlers) RegisterEventHandlers(client *mongo.Client, s *discordgo.Session) {
 	if Player == nil {
-		Player = commands.NewPlayer(s, nil, nil)
+		Player = commands.NewPlayer()
 		Player.AddMusicFiles()
 	}
 	s.AddHandler(h.OnInteractionCreate)
+	s.AddHandler(h.OnMessageCreate)
 }
